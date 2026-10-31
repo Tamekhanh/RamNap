@@ -1,0 +1,41 @@
+# Đẩy một tag dạng v* (vd. v0.1.0) lên GitHub → build bản đầy đủ và bản nhẹ, rồi tạo Release kèm file zip.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and package
+        shell: pwsh
+        run: |
+          $v = '${{ github.ref_name }}'.TrimStart('v')
+          $common = @('-c', 'Release', '-r', 'win-x64', '-p:PublishSingleFile=true', '-p:DebugType=none', "-p:Version=$v")
+          # Bản đầy đủ không nén: file lớn hơn nhưng RAM khi chạy thấp hơn bản nén (~12 MB commit so với ~51 MB).
+          dotnet publish RamNap.csproj @common --self-contained true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/full
+          dotnet publish RamNap.csproj @common --self-contained false -o publish/lite
+
+          New-Item -ItemType Directory release | Out-Null
+          Compress-Archive -Path publish/full/RamNap.exe, LICENSE -DestinationPath "release/RamNap-v$v-win-x64.zip"
+          Compress-Archive -Path publish/lite/RamNap.exe, LICENSE -DestinationPath "release/RamNap-v$v-win-x64-lite.zip"
+          Get-FileHash release/*.zip -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content release/SHA256SUMS.txt
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create '${{ github.ref_name }}' release/* --title 'RamNap ${{ github.ref_name }}' --notes-file RELEASE_NOTES.md

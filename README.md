@@ -1,5 +1,7 @@
 # RamNap 🌙
 
+**⬇️ [Download / Tải về](https://github.com/Tamekhanh/RamNap/releases/latest)** · Windows 10/11 64-bit · ~4 MB RAM
+
 **Tiếng Việt** · **English** · **简体中文** · **日本語** · **한국어** · **Français** · **Español** · **Português** · **Bahasa Indonesia** · **Русский**
 
 > Bấm vào ngôn ngữ của bạn để mở · Click your language to expand · 点击你的语言展开 · 言語をクリックして開く · 언어를 클릭해 펼치기 · Cliquez sur votre langue · Haz clic en tu idioma · Clique no seu idioma · Klik bahasa Anda · Нажмите на свой язык
