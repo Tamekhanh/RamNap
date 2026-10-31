@@ -1,0 +1,18 @@
+# Kết quả build
+bin/
+obj/
+publish/
+artifacts/
+*.zip
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Hệ điều hành
+Thumbs.db
+desktop.ini
+.DS_Store

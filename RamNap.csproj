@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>RamNap</RootNamespace>
+    <AssemblyName>RamNap</AssemblyName>
+    <Version>0.1.0</Version>
+    <Product>RamNap</Product>
+    <Authors>Tamekhanh</Authors>
+    <Copyright>Copyright (c) 2026 Tamekhanh</Copyright>
+    <Description>See where your RAM goes and reclaim it without hurting your experience.</Description>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+
+    <!-- Chính RamNap cũng phải nhẹ -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Bản dịch: nhúng vào exe, chỉ ngôn ngữ đang dùng được nạp vào RAM -->
+    <EmbeddedResource Include="lang\*.json" LogicalName="lang.%(Filename).json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+  </ItemGroup>
+
+</Project>
