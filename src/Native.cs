@@ -86,8 +86,9 @@ internal static class Native
     }
 
     /// <summary>
-    /// Chuyển working set của tiến trình sang standby list. Dữ liệu vẫn còn trong RAM làm cache
-    /// cho tới khi app khác cần, nên mở lại app vẫn nhanh. Trả về số byte rời khỏi working set.
+    /// Đẩy các trang ra khỏi working set của tiến trình. Trang sạch vào standby list, trang bẩn phải
+    /// được nén hoặc ghi ra đĩa, và trang nào được dùng lại thì sẽ quay về. Trả về số byte rời khỏi
+    /// working set: con số này không phải lượng RAM trống thêm được.
     /// </summary>
     public static long TrimWorkingSet(int pid, bool dryRun)
     {

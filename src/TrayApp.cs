@@ -26,6 +26,8 @@ internal sealed class TrayApp : ApplicationContext
         tray = new NotifyIcon { Icon = AppIcon.Create(), Text = "RamNap", Visible = true };
         tray.DoubleClick += (_, _) => ShowWindow();
         BuildMenu();
+        if (settings.LoadError != null)
+            tray.ShowBalloonTip(8000, "RamNap", Lang.T("tray.settingsSafeMode", Lang.T("tray.reloadSettings")), ToolTipIcon.Warning);
 
         foregroundProc = OnForegroundChanged;
         foregroundHook = Native.SetWinEventHook(Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_SYSTEM_FOREGROUND,
@@ -106,6 +108,8 @@ internal sealed class TrayApp : ApplicationContext
         settings.Save();
         Lang.Load(code);
         BuildMenu();
+        if (settings.LoadError != null)
+            tray.ShowBalloonTip(8000, "RamNap", Lang.T("tray.settingsNotSaved"), ToolTipIcon.Warning);
 
         // Cửa sổ đang mở thì dựng lại bằng ngôn ngữ mới.
         if (window != null)
@@ -162,7 +166,7 @@ internal sealed class TrayApp : ApplicationContext
         string status = optimizer.Paused
             ? Lang.T("tray.statusPaused", optimizer.MemoryLoad)
             : Lang.T("tray.status", optimizer.MemoryLoad, optimizer.NappingCount);
-        statusItem.Text = Lang.T("tray.statusReclaimed", status, Optimizer.Mb(optimizer.TotalTrimmedBytes));
+        statusItem.Text = status;
 
         string tip = $"RamNap\n{status}";
         tray.Text = tip.Length > 127 ? tip[..127] : tip;
@@ -171,6 +175,13 @@ internal sealed class TrayApp : ApplicationContext
     private void ReloadSettings()
     {
         var settings = Settings.Load();
+        if (settings.LoadError != null)
+        {
+            // Giữ nguyên cài đặt đang dùng: lỗi gõ trong file không được làm mất DryRun hay Exclusions.
+            tray.ShowBalloonTip(8000, "RamNap", Lang.T("tray.settingsInvalid", Lang.T("tray.reloadSettings")), ToolTipIcon.Warning);
+            return;
+        }
+
         optimizer.ApplySettings(settings);
         timer.Interval = settings.IntervalSeconds * 1000;
         if (!string.Equals(Lang.Code, settings.Language, StringComparison.OrdinalIgnoreCase))

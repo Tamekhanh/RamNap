@@ -19,7 +19,7 @@ internal static class NapState
             var data = pids.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
             if (data.Count == 0) { File.Delete(FilePath); return; }
             Directory.CreateDirectory(Settings.Folder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(data));
+            Settings.WriteAtomic(FilePath, JsonSerializer.Serialize(data));
         }
         catch (Exception ex) { Log.Write(Lang.T("log.stateSaveError", ex.Message)); }
     }

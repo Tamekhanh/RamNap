@@ -35,6 +35,7 @@ internal sealed class MainForm : Form
     private DateTime slowDataAt = DateTime.MinValue;
     private List<AppEntry> entries = [];
     private string appKeys = "";
+    private bool adviceAutoSelected;
 
     /// <param name="changeLanguage">Đổi ngôn ngữ toàn app (TrayApp lưu cài đặt, dựng lại menu và mở lại cửa sổ này).</param>
     public MainForm(Optimizer optimizer, Action<string> changeLanguage)
@@ -62,7 +63,6 @@ internal sealed class MainForm : Form
         // Tab 1: gợi ý
         SetupList(adviceList, (Lang.T("ui.colLevel"), 110), (Lang.T("ui.colAdvice"), 560), (Lang.T("ui.colSavings"), 130));
         adviceList.SelectedIndexChanged += (_, _) => ShowAdvice();
-        adviceList.DoubleClick += (_, _) => RunAction();
         adviceHeader.Height = S(30);
         adviceHeader.Font = new Font(Font, FontStyle.Bold);
         actionButton.Height = S(34);
@@ -176,7 +176,7 @@ internal sealed class MainForm : Form
             Advisor.AddWindowsMemory(entries, mem);
 
             UpdateSummary(mem);
-            UpdateAdvice(Advisor.BuildAdvice(entries, mem, startupNames));
+            UpdateAdvice(Advisor.BuildAdvice(entries, mem, startupNames, optimizer.Exclusions), mem);
             UpdateApps(force);
         }
         catch (Exception ex)
@@ -205,13 +205,13 @@ internal sealed class MainForm : Form
         ]);
     }
 
-    private void UpdateAdvice(List<Advice> advice)
+    private void UpdateAdvice(List<Advice> advice, MemoryOverview mem)
     {
         string? selected = (adviceList.SelectedItems.Count > 0 ? adviceList.SelectedItems[0].Tag as Advice : null)?.Key;
         long savings = advice.Sum(a => a.Savings);
         int actionable = advice.Count(a => a.Level != AdviceLevel.Info);
         adviceHeader.Text = actionable == 0
-            ? Lang.T("ui.noAdvice")
+            ? Lang.T("ui.noAdvice", mem.Load)
             : Lang.T("ui.adviceHeader", actionable, Advisor.Format(savings));
 
         adviceList.BeginUpdate();
@@ -230,7 +230,13 @@ internal sealed class MainForm : Form
             adviceList.Items.Add(item);
             if (a.Key == selected) item.Selected = true;
         }
-        if (adviceList.SelectedItems.Count == 0 && adviceList.Items.Count > 0) adviceList.Items[0].Selected = true;
+        // Chỉ tự chọn lúc mới mở. Gợi ý đang chọn biến mất mà tự nhảy sang dòng khác thì nút hành động
+        // sẽ đổi mục tiêu ngay dưới con trỏ chuột, nên khi đó để trống và ẩn nút.
+        if (!adviceAutoSelected && adviceList.Items.Count > 0)
+        {
+            adviceAutoSelected = true;
+            if (adviceList.SelectedItems.Count == 0) adviceList.Items[0].Selected = true;
+        }
         adviceList.EndUpdate();
         ShowAdvice();
     }
@@ -340,10 +346,15 @@ internal sealed class MainForm : Form
                     break;
 
                 case AdviceAction.ForceQuit:
-                    var answer = MessageBox.Show(this, Lang.T("ui.forceQuitConfirm", a.ActionText), "RamNap", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+                    string[] quitNames = a.ProcessName!.Split('|');
+                    int processCount = 0;
+                    foreach (var name in quitNames)
+                        foreach (var p in Process.GetProcessesByName(name))
+                            using (p) processCount++;
+                    var answer = MessageBox.Show(this, Lang.T("ui.forceQuitConfirm", a.ActionText, processCount), "RamNap", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
                     if (answer != DialogResult.Yes) return;
                     // App gốc trước, tiến trình phụ sau, để app gốc không kịp bật lại tiến trình phụ.
-                    foreach (var name in a.ProcessName!.Split('|'))
+                    foreach (var name in quitNames)
                         foreach (var p in Process.GetProcessesByName(name))
                             using (p) try { p.Kill(); } catch { /* đã thoát hoặc không có quyền */ }
                     break;

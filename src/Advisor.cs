@@ -66,6 +66,18 @@ internal static class Advisor
         ["Battle.net Helper"] = ("Battle.net", ["Battle.net", "Battle.net Helper"]),
     };
 
+    /// <summary>
+    /// Runtime, cơ sở dữ liệu và máy ảo: một tên có thể gồm nhiều chương trình độc lập (server, script,
+    /// dữ liệu đang ghi dở), nên không bao giờ có nút buộc thoát theo tên.
+    /// </summary>
+    private static readonly HashSet<string> NoForceQuitNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "node", "deno", "bun", "python", "python3", "pythonw", "py", "java", "javaw", "dotnet", "MSBuild",
+        "ruby", "php", "php-cgi", "perl", "postgres", "mysqld", "mariadbd", "mongod", "redis-server", "sqlservr",
+        "docker", "dockerd", "com.docker.backend", "wsl", "wslhost", "wslrelay", "vmmem", "vmmemWSL",
+        "vmware-vmx", "VirtualBoxVM", "VBoxHeadless", "qemu-system-x86_64",
+    };
+
     /// <summary>Tên tiến trình → khóa ghi chú trong file ngôn ngữ.</summary>
     private static readonly Dictionary<string, string> NoteKeys = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -176,7 +188,8 @@ internal static class Advisor
         }
     }
 
-    public static List<Advice> BuildAdvice(List<AppEntry> entries, MemoryOverview mem, HashSet<string> startupNames)
+    /// <param name="exclusions">App bạn đã loại trừ thì không gợi ý đóng, thoát hay bỏ tự khởi động.</param>
+    public static List<Advice> BuildAdvice(List<AppEntry> entries, MemoryOverview mem, HashSet<string> startupNames, IReadOnlySet<string> exclusions)
     {
         var advice = new List<Advice>();
         foreach (var e in entries)
@@ -193,12 +206,21 @@ internal static class Advisor
                 continue;
             }
 
+            if (exclusions.Contains(e.Name)) continue;
+
             if (e.Category == AppCategory.Open && e.Idle >= TimeSpan.FromMinutes(30) && e.Private >= 150 * MB)
             {
                 advice.Add(new Advice($"idle:{e.Name}", AdviceLevel.Consider,
                     Lang.T("adv.idle.title", e.Title, (int)e.Idle.Value.TotalMinutes, size),
                     Lang.T("adv.idle.detail", e.Title, size),
                     e.Private, Estimated: false, AdviceAction.CloseApp, Lang.T("adv.close", e.Title), e.Name));
+            }
+            else if (e.Category == AppCategory.Background && e.Private >= 150 * MB && NoForceQuitNames.Contains(e.Name))
+            {
+                advice.Add(new Advice($"bg:{e.Name}", AdviceLevel.Consider,
+                    Lang.T("adv.bg.title", e.Title, size),
+                    Lang.T("adv.bg.detailManual", e.Title, size),
+                    e.Private, Estimated: false));
             }
             else if (e.Category == AppCategory.Background && e.Private >= 150 * MB)
             {

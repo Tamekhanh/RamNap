@@ -1,4 +1,6 @@
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace RamNap;
 
@@ -31,7 +33,13 @@ internal sealed class Settings
     /// <summary>App dùng từ ngần này % của 1 nhân CPU trở lên được coi là đang làm việc (phát nhạc, tải file...).</summary>
     public double CpuActivePercent { get; set; } = 2.0;
 
-    /// <summary>Chỉ giải phóng RAM của app đang ngủ khi RAM sử dụng đạt mức % này.</summary>
+    /// <summary>
+    /// Đẩy working set của app đang ngủ ra khi RAM căng. Mặc định tắt: chưa có benchmark nào chứng
+    /// minh việc này có lợi, còn app bị đẩy ra thì phải nạp lại dữ liệu khi được dùng tiếp.
+    /// </summary>
+    public bool TrimEnabled { get; set; }
+
+    /// <summary>Khi <see cref="TrimEnabled"/> bật: chỉ giải phóng RAM của app đang ngủ khi RAM sử dụng đạt mức % này.</summary>
     public int PressurePercent { get; set; } = 80;
 
     /// <summary>Khoảng nghỉ tối thiểu giữa hai lần giải phóng RAM của cùng một app.</summary>
@@ -55,7 +63,24 @@ internal sealed class Settings
     /// <summary>Tên tiến trình (không cần ".exe") bạn muốn loại trừ thêm, cộng với danh sách có sẵn.</summary>
     public List<string>? Exclusions { get; set; } = [];
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    /// <summary>
+    /// Khác null nghĩa là settings.json đang lỗi và đây là cài đặt an toàn thay thế (chế độ thử).
+    /// Khi đó không được ghi đè file, vì file đó có thể chứa cài đặt của bạn.
+    /// </summary>
+    [JsonIgnore]
+    public string? LoadError { get; private init; }
+
+    /// <summary>
+    /// Bỏ qua dấu phẩy thừa và ghi chú vì chúng không làm đổi ý nghĩa. Khóa lạ thì báo lỗi: gõ sai
+    /// "DryRun" mà lờ đi thì app sẽ âm thầm chạy thật.
+    /// </summary>
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        AllowTrailingCommas = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+    };
 
     public static string Folder { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RamNap");
@@ -72,19 +97,21 @@ internal sealed class Settings
                  .Select(n => n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? n[..^4] : n),
             StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Đọc settings.json. File lỗi thì trả về cài đặt an toàn có <see cref="LoadError"/>, không bao giờ âm thầm dùng mặc định.</summary>
     public static Settings Load()
     {
         Settings settings;
         try
         {
             settings = File.Exists(FilePath)
-                ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), JsonOptions) ?? new Settings()
+                ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), JsonOptions)
+                    ?? throw new JsonException("The file contains null.")
                 : new Settings();
         }
         catch (Exception ex)
         {
             Log.Write(Lang.T("log.settingsReadError", ex.Message));
-            return new Settings();
+            return new Settings { DryRun = true, LoadError = ex.Message };
         }
 
         settings.IdleMinutes = Math.Clamp(settings.IdleMinutes, 1, 24 * 60);
@@ -98,11 +125,24 @@ internal sealed class Settings
 
     public void Save()
     {
+        if (LoadError != null) return;
         try
         {
             Directory.CreateDirectory(Folder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, JsonOptions));
+            WriteAtomic(FilePath, JsonSerializer.Serialize(this, JsonOptions));
         }
         catch (Exception ex) { Log.Write(Lang.T("log.settingsSaveError", ex.Message)); }
+    }
+
+    /// <summary>Ghi ra file tạm rồi đổi tên, để mất điện hay crash giữa chừng không để lại file ghi dở.</summary>
+    public static void WriteAtomic(string path, string text)
+    {
+        string temp = path + ".tmp";
+        using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            stream.Write(new UTF8Encoding(false).GetBytes(text));
+            stream.Flush(flushToDisk: true);
+        }
+        File.Move(temp, path, overwrite: true);
     }
 }

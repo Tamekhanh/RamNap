@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>RamNap</RootNamespace>
     <AssemblyName>RamNap</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Product>RamNap</Product>
     <Authors>Tamekhanh</Authors>
     <Copyright>Copyright (c) 2026 Tamekhanh</Copyright>

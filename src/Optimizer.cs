@@ -6,8 +6,8 @@ namespace RamNap;
 /// Theo dõi các app theo tên tiến trình (Chrome có nhiều tiến trình thì gom chung một nhóm).
 /// App có cửa sổ mà bạn không dùng và gần như không tốn CPU suốt <see cref="Settings.IdleMinutes"/> phút
 /// thì được "cho ngủ": hạ memory priority để Windows lấy lại RAM từ nó trước, thay vì từ app
-/// bạn đang dùng. Chỉ khi RAM thật sự căng mới đẩy working set của app ngủ ra, mỗi lượt một app.
-/// Không tắt, không treo, không dừng app nào.
+/// bạn đang dùng. Đẩy working set của app ngủ ra (mỗi lượt một app) là tùy chọn, mặc định tắt:
+/// xem <see cref="Settings.TrimEnabled"/>. Không tắt, không treo, không dừng app nào.
 /// </summary>
 internal sealed class Optimizer
 {
@@ -43,8 +43,10 @@ internal sealed class Optimizer
     }
 
     public uint MemoryLoad { get; private set; }
-    public long TotalTrimmedBytes { get; private set; }
     public int NappingCount => groups.Values.Count(g => g.Napping);
+
+    /// <summary>Các app RamNap không được đụng tới: danh sách có sẵn cộng với Exclusions của bạn.</summary>
+    public IReadOnlySet<string> Exclusions => exclusions;
 
     public bool Paused
     {
@@ -126,7 +128,7 @@ internal sealed class Optimizer
         foreach (var name in groups.Keys.Where(k => !snapshot.ContainsKey(k)).ToList())
             groups.Remove(name);
 
-        if (MemoryLoad >= settings.PressurePercent) TrimOne(snapshot, now);
+        if (settings.TrimEnabled && MemoryLoad >= settings.PressurePercent) TrimOne(snapshot, now);
         SaveStateIfDirty();
     }
 
@@ -208,7 +210,6 @@ internal sealed class Optimizer
 
         long moved = procs.Where(p => g.NappedPids.ContainsKey(p.Pid))
                           .Sum(p => Native.TrimWorkingSet(p.Pid, dryRun: false));
-        TotalTrimmedBytes += moved;
         Log.Write(Lang.T("log.trim", g.Name, Mb(moved), MemoryLoad));
     }
 
